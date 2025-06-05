@@ -6,7 +6,7 @@ use ark_crypto_primitives::sponge::{
 };
 use ark_ec::PrimeGroup;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand};
-use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::fp::FpVar};
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::fp::FpVar, prelude::Boolean};
 use ark_relations::r1cs::ConstraintSystemRef;
 use ark_std::test_rng;
 use coeffs::vandermonde_interpolation;
@@ -33,7 +33,7 @@ struct Nsc {
 
 type FrVar = FpVar<Fr>;
 
-pub struct NscVar {
+pub struct UVar {
     pub tcc: FrVar,
     pub tpc: FrVar,
     pub xcc: FrVar,
@@ -42,7 +42,7 @@ pub struct NscVar {
     // todo: commitment
 }
 
-impl NscVar {
+impl UVar {
     pub fn new(cs: ConstraintSystemRef<Fr>, nsc: Nsc) -> ark_relations::r1cs::Result<Self> {
         let tcc = nsc.cc.t.to_witness(cs.clone())?;
         let tpc = nsc.pc.t.to_witness(cs.clone())?;
@@ -50,6 +50,9 @@ impl NscVar {
         let xpc = nsc.pc.x.to_witness(cs.clone())?;
         let com = CommVar::empty(); // todo
         Ok(Self { tcc, tpc, xcc, xpc , com})
+    }
+    pub fn base(cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<Self> {
+        todo!()
     }
 }
 
@@ -221,10 +224,16 @@ impl ZeroFold {
     pub fn verify(
         self,
         cs: ConstraintSystemRef<Fr>,
-    ) -> ark_relations::r1cs::Result<(NscVar, NscVar, NscVar)> {
+        is_base: &Boolean<Fr>,
+    ) -> ark_relations::r1cs::Result<(UVar, UVar, UVar)> {
+        
+
+        let u_b = UVar::base(cs.clone())?;
+
         // Varに割り当てる。
-        let u_r = NscVar::new(cs.clone(), self.u_r)?;
-        let u_i = NscVar::new(cs.clone(), self.u_i)?;
+        // todo: base caseを考える。
+        let u_r = UVar::new(cs.clone(), self.u_r)?;
+        let u_i = UVar::new(cs.clone(), self.u_i)?;
         // let u_f = NscVar::new(cs.clone(), self.u_f)?;
         let coeffs = self.coeffs.to_witness(cs.clone())?;
         let one = FrVar::new_constant(cs.clone(), Fr::ONE)?;
@@ -247,7 +256,7 @@ impl ZeroFold {
         let xcc = (&one - &rb) * &u_r.xcc + &rb * &u_i.xcc;
         let xpc = (&one - &rb) * &u_r.xpc + &rb * &u_i.xpc;
         // 畳み込んだインスタンスを作る。
-        let u_f = NscVar {
+        let u_f = UVar {
             tcc: self.u_f.cc.t.to_witness(cs.clone())?,
             tpc: self.u_f.pc.t.to_witness(cs.clone())?,
             xcc,
@@ -273,7 +282,7 @@ impl ZeroFold {
         // inputを畳み込む。
         let xcc = (&one - &rb) * &u_r.xcc + &rb * &u_i.xcc;
         let xpc = (&one - &rb) * &u_r.xpc + &rb * &u_i.xpc;
-        let u_f = NscVar {
+        let u_f = UVar {
             tcc: self.u_f.cc.t.to_witness(cs.clone())?,
             tpc: self.u_f.pc.t.to_witness(cs.clone())?,
             xcc,

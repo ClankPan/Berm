@@ -4,12 +4,7 @@ use ark_bn254::{Fq, Fr, G1Projective};
 use ark_ff::{Field, PrimeField};
 use ark_grumpkin::constraints::GVar;
 use ark_r1cs_std::{
-    R1CSVar,
-    alloc::AllocVar,
-    convert::ToConstraintFieldGadget,
-    eq::EqGadget,
-    fields::{FieldVar, emulated_fp::EmulatedFpVar, fp::FpVar},
-    prelude::ToBitsGadget,
+    alloc::AllocVar, convert::ToConstraintFieldGadget, eq::EqGadget, fields::{emulated_fp::EmulatedFpVar, fp::FpVar, FieldVar}, prelude::{Boolean, ToBitsGadget}, R1CSVar
 };
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
@@ -42,6 +37,17 @@ pub struct U {
     w: Vec<Fq>,
     e: Vec<Fq>,
     x: Vec<Fq>,
+}
+
+pub struct UVar {
+
+}
+
+impl UVar {
+    
+    pub fn base(cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<Self> {
+        todo!()
+    }
 }
 
 pub type EmulatedFrVar = EmulatedFpVar<Fq, Fr>;
@@ -108,9 +114,13 @@ impl CycleFold {
         com_r: &CommVar,
         com_i: &CommVar,
         com_f: &CommVar,
-    ) -> ark_relations::r1cs::Result<(U, U)> {
+        is_base: &Boolean<Fr>,
+    ) -> ark_relations::r1cs::Result<(UVar, UVar)> {
         // 引数のcyclefoldのUとこのselfのUを線形結合する。
         // 結果を返す。
+
+
+        let cf_b = UVar::base(cs.clone())?;
 
         let rb = FpVar::<Fr>::one(); // 乱数をどこからとってくる？
 

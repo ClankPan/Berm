@@ -1,9 +1,14 @@
 use alloc::Alloc;
 use ark_bn254::Fr;
-use ark_r1cs_std::{R1CSVar, alloc::AllocVar, eq::EqGadget, fields::fp::FpVar};
+use ark_r1cs_std::{
+    R1CSVar,
+    alloc::AllocVar,
+    eq::EqGadget,
+    fields::{FieldVar, fp::FpVar},
+};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef};
 use cyclefold::{CommVar, CycleFold};
-use zerofold::{NscVar, ZeroFold};
+use zerofold::ZeroFold;
 
 use ark_relations::r1cs::Result;
 
@@ -39,8 +44,10 @@ impl NeutronNova {
 struct AugmentedCircuit {
     zerofold: ZeroFold,
     cyclefold: CycleFold,
+    z_0: Vec<Fr>,
     z_i: Vec<Fr>,
     cpu: CpuCircuit,
+    sc_i: Fr, // step counter
 }
 
 impl ConstraintSynthesizer<Fr> for AugmentedCircuit {
@@ -48,21 +55,22 @@ impl ConstraintSynthesizer<Fr> for AugmentedCircuit {
         self,
         cs: ark_relations::r1cs::ConstraintSystemRef<Fr>,
     ) -> ark_relations::r1cs::Result<()> {
-        let z_in = self
-            .z_i
-            .into_iter()
-            .map(|z| z.to_witness(cs.clone()))
-            .collect::<Result<Vec<FrVar>>>()?;
+        let sc_i = self.sc_i.to_witness(cs.clone())?;
+
+        let is_base = sc_i.is_zero()?;
+
+        let z_0 = self.z_0.to_witness(cs.clone())?;
+        let z_in = self.z_i.to_witness(cs.clone())?;
         let z_out = self.cpu.synthesize(cs.clone(), &z_in)?;
 
-        let (zf_r, zf_i, zf_f) = self.zerofold.verify(cs.clone())?;
+        let (zf_r, zf_i, zf_f) = self.zerofold.verify(cs.clone(), &is_base)?;
 
         let (cf_r, cf_f) = self
             .cyclefold
-            .verify(cs.clone(), &zf_r.com, &zf_i.com, &zf_f.com)?;
+            .verify(cs.clone(), &zf_r.com, &zf_i.com, &zf_f.com, &is_base)?;
 
-        let h_r = hash(&zf_r, &cf_r, z_in)?;
-        let h_f = hash(&zf_f, &cf_f, z_out)?;
+        let h_r = hash(&zf_r, &cf_r, &z_0, z_in, &sc_i)?;
+        let h_f = hash(&zf_f, &cf_f, &z_0, z_out, &(sc_i + FrVar::one()))?;
 
         h_r.enforce_equal(&zf_i.xcc)?;
         h_f.value()?.to_input(cs.clone())?.enforce_equal(&h_r)?;
@@ -74,9 +82,11 @@ impl ConstraintSynthesizer<Fr> for AugmentedCircuit {
 pub type FrVar = FpVar<Fr>;
 
 pub fn hash(
-    zf: &NscVar,
-    cf: &cyclefold::U,
-    z: Vec<FrVar>,
+    zf: &zerofold::UVar,
+    cf: &cyclefold::UVar,
+    z_0: &Vec<FrVar>,
+    z_i: Vec<FrVar>,
+    sc_i: &FrVar,
 ) -> ark_relations::r1cs::Result<FrVar> {
     todo!()
 }

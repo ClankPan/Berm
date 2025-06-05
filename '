@@ -1,0 +1,78 @@
+mod poseidon_config;
+
+use ark_bn254::{Fr, G1Projective};
+use ark_crypto_primitives::sponge::{CryptographicSponge, poseidon::PoseidonSponge};
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::Field;
+use ark_r1cs_std::{alloc::AllocVar, fields::emulated_fp::EmulatedFpVar};
+use poseidon_config::poseidon_canonical_config;
+
+const SQ: usize = 4;
+
+pub fn main() {}
+
+struct ZeroFold {}
+
+struct Sc {
+    t: Fr,
+    w: Vec<Fr>,
+    x: Vec<Fr>,
+}
+
+struct Nsc {
+    c: (Fr, G1Projective),
+    e: Vec<Fr>,
+    cc: Sc,
+    pc: Sc,
+}
+
+impl ZeroFold {
+    pub fn prove(u_r: Nsc, cc: Sc, pc: Sc) -> ark_relations::r1cs::Result<()> {
+        let mut transcript = PoseidonSponge::<Fr>::new(&poseidon_canonical_config());
+        transcript.absorb(&cc.t);
+        transcript.absorb(&cc.x);
+        transcript.absorb(&pc.t);
+        transcript.absorb(&pc.x);
+        transcript.absorb(&u_r.cc.t);
+        transcript.absorb(&u_r.cc.x);
+        transcript.absorb(&u_r.pc.t);
+        transcript.absorb(&u_r.pc.x);
+        // let affine = u_r.c.1.into_affine().xy().unwrap();
+        let tau: Fr = transcript.squeeze_field_elements(1)[0];
+        let e: Vec<Fr> = (0..2 * SQ)
+            .map(|i| {
+                let x = i % SQ * (1 - (SQ - 1) * (1 / SQ));
+                tau.pow([x as u64])
+            })
+            .collect();
+
+        Ok(())
+    }
+}
+
+fn fold(v: Vec<Fr>, w: Vec<Fr>) -> impl Fn(Fr) -> Vec<Fr> {
+    move |b| {
+        v.iter()
+            .zip(&w)
+            .map(|(v, w)| (Fr::ONE - b) * v + b * w)
+            .collect()
+    }
+}
+
+struct MLE {
+    a: Vec<Vec<Fr>>,
+    b: Vec<Vec<Fr>>,
+    c: Vec<Vec<Fr>>,
+}
+
+impl MLE {
+    pub fn e(e: Vec<Fr>) -> (impl Fr(usize) -> Fr, impl Fr(usize) -> Fr) {
+        let mut low = e;
+        let high = e.split_off(SQ);
+
+        let a = move |i| low[i % SQ];
+        let b = move |i| high[i/SQ];
+
+        (a,b)
+    }
+}

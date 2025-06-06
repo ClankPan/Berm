@@ -6,7 +6,9 @@ use ark_crypto_primitives::sponge::{
 };
 use ark_ec::PrimeGroup;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand};
-use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::fp::FpVar, prelude::Boolean};
+use ark_r1cs_std::{
+    alloc::AllocVar, eq::EqGadget, fields::fp::FpVar, prelude::Boolean, select::CondSelectGadget,
+};
 use ark_relations::r1cs::ConstraintSystemRef;
 use ark_std::test_rng;
 use coeffs::vandermonde_interpolation;
@@ -33,6 +35,7 @@ struct Nsc {
 
 type FrVar = FpVar<Fr>;
 
+#[derive(Clone)]
 pub struct UVar {
     pub tcc: FrVar,
     pub tpc: FrVar,
@@ -49,7 +52,13 @@ impl UVar {
         let xcc = nsc.cc.x.to_witness(cs.clone())?;
         let xpc = nsc.pc.x.to_witness(cs.clone())?;
         let com = CommVar::empty(); // todo
-        Ok(Self { tcc, tpc, xcc, xpc , com})
+        Ok(Self {
+            tcc,
+            tpc,
+            xcc,
+            xpc,
+            com,
+        })
     }
     pub fn base(cs: ConstraintSystemRef<Fr>) -> ark_relations::r1cs::Result<Self> {
         todo!()
@@ -224,12 +233,7 @@ impl ZeroFold {
     pub fn verify(
         self,
         cs: ConstraintSystemRef<Fr>,
-        is_base: &Boolean<Fr>,
     ) -> ark_relations::r1cs::Result<(UVar, UVar, UVar)> {
-        
-
-        let u_b = UVar::base(cs.clone())?;
-
         // Varに割り当てる。
         // todo: base caseを考える。
         let u_r = UVar::new(cs.clone(), self.u_r)?;

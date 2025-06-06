@@ -4,7 +4,7 @@ use ark_bn254::{Fq, Fr, G1Projective};
 use ark_ff::{Field, PrimeField};
 use ark_grumpkin::constraints::GVar;
 use ark_r1cs_std::{
-    alloc::AllocVar, convert::ToConstraintFieldGadget, eq::EqGadget, fields::{emulated_fp::EmulatedFpVar, fp::FpVar, FieldVar}, prelude::{Boolean, ToBitsGadget}, R1CSVar
+    alloc::AllocVar, convert::ToConstraintFieldGadget, eq::EqGadget, fields::{emulated_fp::EmulatedFpVar, fp::FpVar, FieldVar}, prelude::{Boolean, ToBitsGadget}, select::CondSelectGadget, R1CSVar
 };
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
@@ -57,11 +57,13 @@ pub struct AffineVar {
     pub y: EmulatedFrVar,
 }
 // pub type ComVar = (AffineVar, AffineVar, AffineVar);
+#[derive(Clone)]
 pub struct CommVar {
     e: AffineVar,
     cc: AffineVar,
     pc: AffineVar,
 }
+
 
 impl CommVar {
     pub fn empty() -> Self {
@@ -114,7 +116,6 @@ impl CycleFold {
         com_r: &CommVar,
         com_i: &CommVar,
         com_f: &CommVar,
-        is_base: &Boolean<Fr>,
     ) -> ark_relations::r1cs::Result<(UVar, UVar)> {
         // 引数のcyclefoldのUとこのselfのUを線形結合する。
         // 結果を返す。

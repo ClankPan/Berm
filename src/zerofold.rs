@@ -7,9 +7,14 @@ use ark_crypto_primitives::sponge::{
 use ark_ec::PrimeGroup;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand};
 use ark_r1cs_std::{
-    alloc::AllocVar, eq::EqGadget, fields::fp::FpVar, prelude::Boolean, select::CondSelectGadget,
+    alloc::AllocVar,
+    eq::EqGadget,
+    fields::{FieldVar, fp::FpVar},
+    prelude::Boolean,
+    select::CondSelectGadget,
 };
 use ark_relations::r1cs::ConstraintSystemRef;
+use ark_relations::r1cs::Result;
 use ark_std::test_rng;
 use coeffs::vandermonde_interpolation;
 use pedersen::{Param, Pedersen};
@@ -271,13 +276,23 @@ impl ZeroFold {
         // coeffからqを作る。
         let t_r = &u_r.tcc + &gamma * &u_r.tpc; // tの作り方はあってる？
         let t_i = &u_i.tcc + &gamma * &u_i.tpc; // これも
-        let q_0 = coeffs.iter().map(|c| c * Fr::ZERO).sum::<FrVar>();
+        let q_0 = coeffs.iter().map(|c| c * Fr::ZERO).sum::<FrVar>();//todo: これだと定数項が消えてしまう。
         let q_1 = coeffs.iter().map(|c| c * Fr::ONE).sum::<FrVar>();
         // t == q(0) + q(1)を確かめる。
         (t_r + t_i).enforce_equal(&(q_0 + q_1))?;
 
         // c = Q(rb)
-        let c = coeffs.iter().map(|c| c * &rb).sum::<FrVar>();
+        // todo: rbの冪乗にしないといけない。冪乗の順番あってる？逆順かもしれない
+        let c = coeffs
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let rb_pow = rb.pow_by_constant([i as u64])?;
+                Ok(c * &rb_pow)
+            })
+            .collect::<Result<Vec<FrVar>>>()?
+            .iter()
+            .sum::<FrVar>();
         // t = eq(rho, rb)^-1 * c
         let eq = (&one - &rho) * (&one - &rb) + &rho * &rb;
         let t_f = &u_f.tcc + &gamma * &u_f.tpc; // tの作り方はあってる？
